@@ -11,12 +11,12 @@ log()  { echo -e "${GREEN}[+]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err()  { echo -e "${RED}[-]${NC} $1"; exit 1; }
 
-# --- Проверка root ---
-[ "$EUID" -ne 0 ] && err "Запусти скрипт от root"
+# --- Root check ---
+[ "$EUID" -ne 0 ] && err "Please run this script as root"
 
-# --- Установка Docker ---
+# --- Docker installation ---
 if ! command -v docker &>/dev/null; then
-    log "Docker не найден, устанавливаю..."
+    log "Docker not found, installing..."
     apt-get update -qq
     apt-get install -y -qq ca-certificates curl gnupg
     install -m 0755 -d /etc/apt/keyrings
@@ -28,45 +28,45 @@ https://download.docker.com/linux/debian $(. /etc/os-release && echo "$VERSION_C
     apt-get update -qq
     apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-compose-plugin
     systemctl enable --now docker
-    log "Docker установлен"
+    log "Docker installed"
 else
-    log "Docker уже установлен: $(docker --version)"
+    log "Docker is already installed: $(docker --version)"
 fi
 
-# --- Проверка Docker Compose ---
+# --- Docker Compose check ---
 if ! docker compose version &>/dev/null; then
-    log "Docker Compose plugin не найден, устанавливаю..."
+    log "Docker Compose plugin not found, installing..."
     apt-get install -y -qq docker-compose-plugin
-    log "Docker Compose установлен"
+    log "Docker Compose installed"
 else
-    log "Docker Compose уже установлен: $(docker compose version --short)"
+    log "Docker Compose is already installed: $(docker compose version --short)"
 fi
 
-# --- Ввод порта ---
+# --- Port input ---
 echo ""
-read -p "Введи порт для прокси [по умолчанию: 8443]: " USER_PORT
+read -p "Enter the proxy port [default: 8443]: " USER_PORT
 PORT=${USER_PORT:-8443}
 
-# Проверка что порт — число в допустимом диапазоне
+# Validate that the port is a number within the allowed range
 if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; then
-    err "Некорректный порт: $PORT"
+    err "Invalid port: $PORT"
 fi
 
-# --- Ввод домена ---
-read -p "Введи домен для маскировки трафика [по умолчанию: www.google.com]: " USER_DOMAIN
+# --- Domain input ---
+read -p "Enter the domain for traffic masking [default: www.google.com]: " USER_DOMAIN
 DOMAIN=${USER_DOMAIN:-www.google.com}
 
-# --- Генерация секрета ---
+# --- Secret generation ---
 SECRET=$(openssl rand -hex 16)
-log "Секрет сгенерирован: $SECRET"
+log "Generated secret: $SECRET"
 
-# --- Создание директорий ---
+# --- Directory creation ---
 INSTALL_DIR="/opt/telemt"
 mkdir -p "$INSTALL_DIR/telemt-config"
 cd "$INSTALL_DIR"
-log "Рабочая директория: $INSTALL_DIR"
+log "Working directory: $INSTALL_DIR"
 
-# --- Создание telemt.toml ---
+# --- telemt.toml creation ---
 cat > "$INSTALL_DIR/telemt-config/telemt.toml" <<EOF
 [general]
 use_middle_proxy = true
@@ -101,9 +101,9 @@ default = "$SECRET"
 [network]
 ipv6 = false
 EOF
-log "Конфиг создан: $INSTALL_DIR/telemt-config/telemt.toml"
+log "Config created: $INSTALL_DIR/telemt-config/telemt.toml"
 
-# --- Создание docker-compose.yml ---
+# --- docker-compose.yml creation ---
 cat > "$INSTALL_DIR/docker-compose.yml" <<EOF
 services:
   telemt:
@@ -127,53 +127,53 @@ services:
         max-size: "10m"
         max-file: "3"
 EOF
-log "docker-compose.yml создан"
+log "docker-compose.yml created"
 
-# --- Файрвол ---
+# --- Firewall ---
 if command -v ufw &>/dev/null && ufw status | grep -q "Status: active"; then
     if ! ufw status | grep -q "$PORT"; then
         ufw allow "$PORT/tcp" > /dev/null
-        log "Порт $PORT открыт в ufw"
+        log "Port $PORT opened in ufw"
     else
-        log "Порт $PORT уже открыт в ufw"
+        log "Port $PORT is already open in ufw"
     fi
 elif command -v iptables &>/dev/null; then
     if ! iptables -C INPUT -p tcp --dport "$PORT" -j ACCEPT 2>/dev/null; then
         iptables -I INPUT -p tcp --dport "$PORT" -j ACCEPT
-        log "Порт $PORT открыт в iptables"
+        log "Port $PORT opened in iptables"
     else
-        log "Порт $PORT уже открыт в iptables"
+        log "Port $PORT is already open in iptables"
     fi
 else
-    warn "Файрвол не обнаружен, пропускаю"
+    warn "No firewall detected, skipping"
 fi
 
-# --- Запуск ---
-log "Запускаю контейнер..."
+# --- Start ---
+log "Starting container..."
 docker compose down 2>/dev/null || true
 docker compose up -d
 
-# --- Ожидание старта ---
-log "Жду запуска (35 сек)..."
+# --- Wait for startup ---
+log "Waiting for startup (35 sec)..."
 sleep 35
 
-# --- Получение ссылки ---
+# --- Fetch connection link ---
 LINK=$(docker compose logs --since 40s 2>/dev/null | grep "EE-TLS" | tail -1 | grep -oP 'tg://proxy\S+')
 
 echo ""
 if [ -n "$LINK" ]; then
     echo -e "${GREEN}========================================${NC}"
-    echo -e "${GREEN}  Telemt MTProxy успешно запущен!${NC}"
+    echo -e "${GREEN}  Telemt MTProxy started successfully!${NC}"
     echo -e "${GREEN}========================================${NC}"
     echo ""
-    echo -e "  Ссылка для подключения:"
+    echo -e "  Connection link:"
     echo -e "  ${YELLOW}$LINK${NC}"
     echo ""
-    echo -e "  Порт:   ${YELLOW}$PORT${NC}"
-    echo -e "  Домен:  ${YELLOW}$DOMAIN${NC}"
-    echo -e "  Секрет: ${YELLOW}$SECRET${NC}"
+    echo -e "  Port:   ${YELLOW}$PORT${NC}"
+    echo -e "  Domain: ${YELLOW}$DOMAIN${NC}"
+    echo -e "  Secret: ${YELLOW}$SECRET${NC}"
     echo -e "${GREEN}========================================${NC}"
 else
-    warn "Ссылка не найдена, проверь логи:"
+    warn "Connection link not found, check the logs:"
     echo "  docker compose -f $INSTALL_DIR/docker-compose.yml logs --tail=30"
 fi
