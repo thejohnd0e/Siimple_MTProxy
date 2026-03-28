@@ -11,6 +11,22 @@ log()  { echo -e "${GREEN}[+]${NC} $1"; }
 warn() { echo -e "${YELLOW}[!]${NC} $1"; }
 err()  { echo -e "${RED}[-]${NC} $1"; exit 1; }
 
+prompt() {
+    local message="$1"
+    local variable_name="$2"
+    local value
+
+    if [ -t 0 ]; then
+        read -r -p "$message" value
+    elif [ -r /dev/tty ]; then
+        read -r -p "$message" value < /dev/tty
+    else
+        err "Interactive input is not available. Please run this script in a terminal."
+    fi
+
+    printf -v "$variable_name" '%s' "$value"
+}
+
 # --- Root check ---
 [ "$EUID" -ne 0 ] && err "Please run this script as root"
 
@@ -44,7 +60,7 @@ fi
 
 # --- Port input ---
 echo ""
-read -p "Enter the proxy port [default: 8443]: " USER_PORT
+prompt "Enter the proxy port [default: 8443]: " USER_PORT
 PORT=${USER_PORT:-8443}
 
 # Validate that the port is a number within the allowed range
@@ -53,7 +69,7 @@ if ! [[ "$PORT" =~ ^[0-9]+$ ]] || [ "$PORT" -lt 1 ] || [ "$PORT" -gt 65535 ]; th
 fi
 
 # --- Domain input ---
-read -p "Enter the domain for traffic masking [default: www.google.com]: " USER_DOMAIN
+prompt "Enter the domain for traffic masking [default: www.google.com]: " USER_DOMAIN
 DOMAIN=${USER_DOMAIN:-www.google.com}
 
 # --- Secret generation ---
