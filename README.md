@@ -47,15 +47,13 @@ Please use this project responsibly and in accordance with the laws, regulations
 
 ## Important Note About Telegram Voice Calls
 
-Telegram voice calls do not work through `MTProxy`.
-
-Telegram's architecture does not route calls through MTProxy servers. Voice calls require `SOCKS5`, and unlike MTProxy, SOCKS5 traffic cannot be obfuscated in the same way.
+Telegram architecture does NOT allow calls via MTProxy, but only via SOCKS5, which cannot be obfuscated.
 
 In practice, this means:
 
 - `MTProxy` can help users connect to Telegram messaging services
 - `MTProxy` should not be expected to make Telegram voice calls work
-- if voice calls are required, users typically need a different proxy approach such as `SOCKS5`
+- if voice calls are required, users typically need a different proxy approach such as `SOCKS5` or use VPN.
 
 ## What The Script Does
 
